@@ -1,8 +1,9 @@
+import { goBack } from "@/utils/navigation";
 import { usePreferencesStore } from "@/store/preferences";
 import { createThemeStyle } from "@/utils/theme";
 import { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { getEvents, updateEntry } from "@/database/repository";
 import { useEventsStore } from "@/store/events";
@@ -33,15 +34,16 @@ export default function AddEntryScreen() {
   const addEntry = useEventsStore((state) => state.addEntry);
   const [event, setEvent] = useState<EventItem | null>(null);
   const [occurredAt, setOccurredAt] = useState(date ? `${date} 12:00` : localDateTime(new Date()));
+  const [title, setTitle] = useState("Recorded moment");
   const [note, setNote] = useState("");
   const [numericValue, setNumericValue] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     void Promise.all([
-      getEvents(db).then((items) => setEvent(items.find((item) => item.id === Number(eventId)) ?? null)),
-      entryId ? db.getFirstAsync<{ occurredAt: string; note: string | null; numericValue: number | null }>("SELECT occurred_at AS occurredAt, note, numeric_value AS numericValue FROM entries WHERE id = ?", Number(entryId)) : Promise.resolve(null),
-    ]).then(([, entry]) => { if (entry) { setOccurredAt(localDateTime(new Date(entry.occurredAt))); setNote(entry.note ?? ""); setNumericValue(entry.numericValue === null ? "" : String(entry.numericValue)); } });
+      getEvents(db).then((items) => { const found = items.find((item) => item.id === Number(eventId)) ?? null; setEvent(found); if (found && !entryId) setTitle(found.name); }),
+      entryId ? db.getFirstAsync<{ occurredAt: string; title: string | null; note: string | null; numericValue: number | null }>("SELECT occurred_at AS occurredAt, title, note, numeric_value AS numericValue FROM entries WHERE id = ?", Number(entryId)) : Promise.resolve(null),
+    ]).then(([, entry]) => { if (entry) { setOccurredAt(localDateTime(new Date(entry.occurredAt))); setTitle(entry.title ?? "Recorded moment"); setNote(entry.note ?? ""); setNumericValue(entry.numericValue === null ? "" : String(entry.numericValue)); } });
   }, [db, eventId, entryId]);
 
   const save = async () => {
@@ -51,13 +53,13 @@ export default function AddEntryScreen() {
     if (numericValue.trim() && !Number.isFinite(Number(numericValue))) { Alert.alert("Check the number", "Enter a valid numeric value or leave it blank."); return; }
     setSaving(true);
     try {
-      const input = { eventId: Number(eventId), occurredAt: parsed.toISOString(), note, numericValue: numericValue.trim() ? Number(numericValue) : null };
+      const input = { eventId: Number(eventId), occurredAt: parsed.toISOString(), title, note, numericValue: numericValue.trim() ? Number(numericValue) : null };
       if (entryId) {
         await updateEntry(db, Number(entryId), input);
         await refreshEventReminder(db, Number(eventId));
         await useEventsStore.getState().load(db);
       } else await addEntry(db, input);
-      router.back();
+      goBack();
     } catch { Alert.alert("Couldn’t save this entry", "Please try again."); }
     finally { setSaving(false); }
   };
@@ -65,13 +67,14 @@ export default function AddEntryScreen() {
   return (
     <KeyboardAvoidingView style={s(styles.safe)} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={s(styles.content)} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} style={s(styles.back)}><Text style={s(styles.backText)}>‹  Back</Text></Pressable>
+        <Pressable onPress={() => goBack()} style={s(styles.back)}><Text style={s(styles.backText)}>‹  Back</Text></Pressable>
         <View style={s(styles.eventHead)}><View style={[s(styles.iconBox), { backgroundColor: event?.color ?? "#E8EFE7" }]}><Text style={s(styles.icon)}>{event?.icon ?? "✳"}</Text></View><View><Text style={s(styles.eyebrow)}>{entryId ? "EDIT A MOMENT" : "ADD A MOMENT"}</Text><Text style={s(styles.title)}>{event?.name ?? "New entry"}</Text></View></View>
         <Text style={s(styles.intro)}>Log when it happened. Your timeline will update right away.</Text>
         <Text style={s(styles.label)}>DATE & TIME</Text><TextInput value={occurredAt} onChangeText={setOccurredAt} style={s(styles.input)} autoCapitalize="none" autoCorrect={false} accessibilityLabel="Date and time, year month day and 24 hour time" />
         <Text style={s(styles.hint)}>Local time · YYYY-MM-DD HH:mm</Text>
         <Pressable onPress={() => setOccurredAt(localDateTime(new Date()))} style={s(styles.nowButton)}><Text style={s(styles.nowText)}>Use current time</Text></Pressable>
-        <Text style={s(styles.label)}>NOTE <Text style={s(styles.optional)}>· OPTIONAL</Text></Text><TextInput value={note} onChangeText={setNote} style={[s(styles.input), s(styles.multiline)]} placeholder="What would you like to remember?" placeholderTextColor="#AAB0AA" multiline maxLength={500} />
+        <Text style={s(styles.label)}>TITLE</Text><TextInput value={title} onChangeText={setTitle} style={s(styles.input)} placeholder="Recorded moment" placeholderTextColor="#AAB0AA" maxLength={80} />
+        <Text style={s(styles.label)}>DESCRIPTION <Text style={s(styles.optional)}>· OPTIONAL</Text></Text><TextInput value={note} onChangeText={setNote} style={[s(styles.input), s(styles.multiline)]} placeholder="Add a detail, or save it as is" placeholderTextColor="#AAB0AA" multiline maxLength={500} />
         <Text style={s(styles.label)}>NUMBER <Text style={s(styles.optional)}>· OPTIONAL</Text></Text><TextInput value={numericValue} onChangeText={setNumericValue} style={s(styles.input)} placeholder="e.g. 80" placeholderTextColor="#AAB0AA" keyboardType="decimal-pad" />
         <PrimaryButton title="Save entry  ↗" onPress={() => void save()} loading={saving} style={s(styles.submit)} />
       </ScrollView>

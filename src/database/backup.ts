@@ -5,7 +5,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 type BackupCategory = { id: number; name: string; icon: string; color: string; created_at: string };
 type BackupEvent = { id: number; name: string; icon: string; color: string; category_id: number; description: string | null; created_at: string; updated_at: string; reminder_enabled: number; reminder_config: string | null };
-type BackupEntry = { id: number; event_id: number; occurred_at: string; note: string | null; photo_uri: string | null; numeric_value: number | null; created_at: string; updated_at: string };
+type BackupEntry = { id: number; event_id: number; occurred_at: string; title?: string | null; note: string | null; photo_uri: string | null; numeric_value: number | null; created_at: string; updated_at: string };
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const validId = (value: unknown) => Number.isSafeInteger(value) && Number(value) > 0;
 const validText = (value: unknown): value is string => typeof value === "string" && value.length > 0;
@@ -52,7 +52,7 @@ export async function importBackup(db: SQLiteDatabase) {
     eventIds.add(Number(item.id));
   }
   for (const item of entries) {
-    if (!isRecord(item) || !validId(item.id) || !validId(item.event_id) || !validTimestamp(item.occurred_at) || !validTimestamp(item.created_at) || !validTimestamp(item.updated_at) || !(item.note === null || typeof item.note === "string") || !(item.photo_uri === null || typeof item.photo_uri === "string") || !(item.numeric_value === null || typeof item.numeric_value === "number" && Number.isFinite(item.numeric_value))) throw new Error("An entry in this backup has invalid fields.");
+    if (!isRecord(item) || !validId(item.id) || !validId(item.event_id) || !validTimestamp(item.occurred_at) || !validTimestamp(item.created_at) || !validTimestamp(item.updated_at) || !(item.title === undefined || item.title === null || typeof item.title === "string") || !(item.note === null || typeof item.note === "string") || !(item.photo_uri === null || typeof item.photo_uri === "string") || !(item.numeric_value === null || typeof item.numeric_value === "number" && Number.isFinite(item.numeric_value))) throw new Error("An entry in this backup has invalid fields.");
     if (!eventIds.has(Number(item.event_id))) throw new Error("An entry references an event that isn’t in this backup.");
   }
 
@@ -81,7 +81,7 @@ export async function importBackup(db: SQLiteDatabase) {
       const eventId = eventMap.get(item.event_id);
       if (!eventId) throw new Error("An event could not be restored.");
       const duplicate = await db.getFirstAsync<{ id: number }>("SELECT id FROM entries WHERE event_id = ? AND occurred_at = ? AND COALESCE(note, '') = COALESCE(?, '') AND COALESCE(numeric_value, -999999999) = COALESCE(?, -999999999) LIMIT 1", eventId, item.occurred_at, item.note, item.numeric_value);
-      if (!duplicate) await db.runAsync("INSERT INTO entries (event_id, occurred_at, note, photo_uri, numeric_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", eventId, item.occurred_at, item.note, item.photo_uri, item.numeric_value, item.created_at, item.updated_at);
+      if (!duplicate) await db.runAsync("INSERT INTO entries (event_id, occurred_at, title, note, photo_uri, numeric_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", eventId, item.occurred_at, item.title || "Recorded moment", item.note, item.photo_uri, item.numeric_value, item.created_at, item.updated_at);
     }
   });
   return { categories: categories.length, events: events.length, entries: entries.length };

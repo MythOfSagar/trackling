@@ -1,3 +1,4 @@
+import { goBack } from "@/utils/navigation";
 import { createThemeStyle } from "@/utils/theme";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -8,7 +9,7 @@ import { useEventsStore } from "@/store/events";
 import { usePreferencesStore } from "@/store/preferences";
 import { formatClock } from "@/utils/elapsed";
 
-type Entry = { id: number; occurredAt: string; note: string | null; numericValue: number | null };
+type Entry = { id: number; occurredAt: string; title: string; note: string | null; numericValue: number | null };
 const PAGE_SIZE = 40;
 
 export default function HistoryScreen() {
@@ -30,7 +31,7 @@ export default function HistoryScreen() {
     try {
       const offset = reset ? 0 : offsetRef.current;
       const pattern = `%${term.trim()}%`;
-      const next = await db.getAllAsync<Entry>(`SELECT id, occurred_at AS occurredAt, note, numeric_value AS numericValue FROM entries WHERE event_id = ? AND (? = '%%' OR note LIKE ?) ORDER BY occurred_at DESC LIMIT ? OFFSET ?`, Number(id), pattern, pattern, PAGE_SIZE, offset);
+      const next = await db.getAllAsync<Entry>(`SELECT id, occurred_at AS occurredAt, title, note, numeric_value AS numericValue FROM entries WHERE event_id = ? AND (? = '%%' OR title LIKE ? OR note LIKE ?) ORDER BY occurred_at DESC LIMIT ? OFFSET ?`, Number(id), pattern, pattern, pattern, PAGE_SIZE, offset);
       setRows((current) => reset ? next : [...current, ...next]);
       offsetRef.current = offset + next.length;
       setHasMore(next.length === PAGE_SIZE);
@@ -44,8 +45,8 @@ export default function HistoryScreen() {
 
   return (
     <View style={s(styles.safe)}>
-      <View style={s(styles.heading)}><Pressable onPress={() => router.back()}><Text style={s(styles.back)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>{eventName} history</Text><Text style={s(styles.subtitle)}>Every time you made it happen.</Text><TextInput value={query} onChangeText={search} placeholder="Search notes…" placeholderTextColor="#AAB0AA" style={s(styles.search)} /></View>
-      <FlatList data={rows} keyExtractor={(item) => String(item.id)} contentContainerStyle={s(styles.list)} onEndReached={() => { if (hasMore && !loading) void load(false); }} onEndReachedThreshold={0.35} refreshing={loading && rows.length === 0} onRefresh={() => void load(true)} ListEmptyComponent={!loading ? <Text style={s(styles.empty)}>{query ? "No matching entries." : "No entries yet. Add the first one."}</Text> : <ActivityIndicator color="#315B45" style={{ marginTop: 30 }} />} ListFooterComponent={loading && rows.length > 0 ? <ActivityIndicator color="#315B45" style={{ padding: 16 }} /> : null} renderItem={({ item }) => <View style={s(styles.row)}><View style={s(styles.marker)}><View style={s(styles.dot)} /><View style={s(styles.line)} /></View><View style={s(styles.entry)}><Text style={s(styles.date)}>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.occurredAt))}</Text><Text style={s(styles.time)}>{formatClock(item.occurredAt, use24Hour)}{item.numericValue !== null ? `  ·  ${item.numericValue}` : ""}</Text>{item.note ? <Text style={s(styles.note)}>{item.note}</Text> : null}<View style={s(styles.actions)}><Pressable onPress={() => router.push({ pathname: "/entries/new", params: { eventId: String(id), entryId: String(item.id) } })}><Text style={s(styles.action)}>Edit</Text></Pressable><Pressable onPress={() => askDelete(item.id)}><Text style={[s(styles.action), s(styles.delete)]}>Delete</Text></Pressable></View></View></View>} />
+      <View style={s(styles.heading)}><Pressable onPress={() => goBack()}><Text style={s(styles.back)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>{eventName} history</Text><Text style={s(styles.subtitle)}>Every time you made it happen.</Text><TextInput value={query} onChangeText={search} placeholder="Search notes…" placeholderTextColor="#AAB0AA" style={s(styles.search)} /></View>
+      <FlatList data={rows} keyExtractor={(item) => String(item.id)} contentContainerStyle={s(styles.list)} onEndReached={() => { if (hasMore && !loading) void load(false); }} onEndReachedThreshold={0.35} refreshing={loading && rows.length === 0} onRefresh={() => void load(true)} ListEmptyComponent={!loading ? <Text style={s(styles.empty)}>{query ? "No matching entries." : "No entries yet. Add the first one."}</Text> : <ActivityIndicator color="#315B45" style={{ marginTop: 30 }} />} ListFooterComponent={loading && rows.length > 0 ? <ActivityIndicator color="#315B45" style={{ padding: 16 }} /> : null} renderItem={({ item }) => <View style={s(styles.row)}><View style={s(styles.marker)}><View style={s(styles.dot)} /><View style={s(styles.line)} /></View><View style={s(styles.entry)}><Text style={s(styles.date)}>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.occurredAt))}</Text><Text style={s(styles.time)}>{formatClock(item.occurredAt, use24Hour)}{item.numericValue !== null ? `  ·  ${item.numericValue}` : ""}</Text><Text style={s(styles.note)}>{item.title}</Text>{item.note ? <Text style={s(styles.note)}>{item.note}</Text> : null}<View style={s(styles.actions)}><Pressable onPress={() => router.push({ pathname: "/entries/new", params: { eventId: String(id), entryId: String(item.id) } })}><Text style={s(styles.action)}>Edit</Text></Pressable><Pressable onPress={() => askDelete(item.id)}><Text style={[s(styles.action), s(styles.delete)]}>Delete</Text></Pressable></View></View></View>} />
     </View>
   );
 }

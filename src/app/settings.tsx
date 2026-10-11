@@ -1,14 +1,15 @@
+import { goBack } from "@/utils/navigation";
 import { createThemeStyle } from "@/utils/theme";
 import { useEffect, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { exportBackup, importBackup } from "@/database/backup";
 import { useEventsStore } from "@/store/events";
 import { scheduleEventReminder, refreshEventReminder } from "@/features/reminders/scheduleReminder";
+import { cancelAllScheduledReminders } from "@/features/reminders/notifications";
 import { usePreferencesStore } from "@/store/preferences";
 import type { ReminderUnit } from "@/types/models";
 
@@ -39,7 +40,7 @@ export default function SettingsScreen() {
         await AsyncStorage.setItem(REMINDERS_KEY, String(enabled));
         setRemindersEnabled(enabled);
       } else if (!enabled) {
-        await Notifications.cancelAllScheduledNotificationsAsync();
+        await cancelAllScheduledReminders();
       } else {
         const events = await db.getAllAsync<{ id: number; name: string; reminderConfig: string | null }>("SELECT id, name, reminder_config AS reminderConfig FROM events WHERE reminder_enabled = 1");
         for (const event of events) {
@@ -81,9 +82,9 @@ export default function SettingsScreen() {
     finally { setBusy(false); }
   };
 
-  const deleteAll = () => Alert.alert("Delete all moments?", "This permanently removes all events and entries from this device. Categories will stay.", [{ text: "Cancel", style: "cancel" }, { text: "Delete everything", style: "destructive", onPress: () => { void (async () => { if (Platform.OS !== "web") await Notifications.cancelAllScheduledNotificationsAsync(); await db.runAsync("DELETE FROM entries"); await db.runAsync("DELETE FROM events"); await reload(db); router.back(); })().catch(() => Alert.alert("Couldn’t delete data", "Please try again.")); } }]);
+  const deleteAll = () => Alert.alert("Delete all moments?", "This permanently removes all events and entries from this device. Categories will stay.", [{ text: "Cancel", style: "cancel" }, { text: "Delete everything", style: "destructive", onPress: () => { void (async () => { await cancelAllScheduledReminders(); await db.runAsync("DELETE FROM entries"); await db.runAsync("DELETE FROM events"); await reload(db); goBack(); })().catch(() => Alert.alert("Couldn’t delete data", "Please try again.")); } }]);
 
-  return <ScrollView style={s(styles.safe)} contentContainerStyle={s(styles.content)}><Pressable onPress={() => router.back()}><Text style={s(styles.back)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>Settings</Text><Text style={s(styles.subtitle)}>Make this little space yours.</Text>
+  return <ScrollView style={s(styles.safe)} contentContainerStyle={s(styles.content)}><Pressable onPress={() => goBack()}><Text style={s(styles.back)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>Settings</Text><Text style={s(styles.subtitle)}>Make this little space yours.</Text>
     <Text style={s(styles.section)}>YOUR SPACE</Text><View style={s(styles.row)}><View style={s(styles.rowIcon)}><Text>◷</Text></View><View style={s(styles.rowText)}><Text style={s(styles.rowTitle)}>24-hour clock</Text><Text style={s(styles.rowHint)}>Use 18:30 instead of 6:30 PM</Text></View><Switch value={use24Hour} onValueChange={(value) => void setUse24Hour(value)} trackColor={{ false: "#DDE2DB", true: "#91AA93" }} thumbColor={use24Hour ? "#315B45" : "#FFFFFF"} accessibilityLabel="Use 24-hour time" /></View><View style={s(styles.row)}><View style={s(styles.rowIcon)}><Text>◐</Text></View><View style={s(styles.rowText)}><Text style={s(styles.rowTitle)}>Dark theme</Text><Text style={s(styles.rowHint)}>{darkMode ? "Dark appearance is on" : "Use a darker appearance"}</Text></View><Switch value={darkMode} onValueChange={(value) => void setDarkMode(value)} trackColor={{ false: "#C8CBD2", true: "#6D9FE2" }} thumbColor={darkMode ? "#D3E4FF" : "#FFFFFF"} accessibilityLabel="Use dark theme" /></View><Pressable onPress={() => router.push("/categories")} style={s(styles.row)}><View style={s(styles.rowIcon)}><Text>✳</Text></View><View style={s(styles.rowText)}><Text style={s(styles.rowTitle)}>Categories</Text><Text style={s(styles.rowHint)}>Create and manage groups</Text></View><Text style={s(styles.arrow)}>�</Text></Pressable>
     <Text style={s(styles.section)}>REMINDERS</Text><View style={s(styles.row)}><View style={s(styles.rowIcon)}><Text>◷</Text></View><View style={s(styles.rowText)}><Text style={s(styles.rowTitle)}>Local notifications</Text><Text style={s(styles.rowHint)}>Reminders stay on this device</Text></View><Switch value={remindersEnabled} disabled={busy} onValueChange={(value) => void setReminders(value)} trackColor={{ false: "#DDE2DB", true: "#91AA93" }} thumbColor={remindersEnabled ? "#315B45" : "#FFFFFF"} accessibilityLabel="Enable all local reminders" /></View><View style={s(styles.timeCard)}><Text style={s(styles.rowTitle)}>Default reminder period</Text><TextInput value={defaultIntervalInput} onChangeText={(value) => { setDefaultIntervalInput(value); const parsed = Number(value); if (Number.isInteger(parsed) && parsed > 0 && parsed <= 999) void setDefaultReminderInterval(parsed); }} keyboardType="number-pad" maxLength={3} style={s({ height: 44, marginTop: 10, borderRadius: 12, backgroundColor: "#F1F3EF", paddingHorizontal: 12, color: "#34463B" })} accessibilityLabel="Default reminder interval" /><View style={s(styles.timeChoices)}>{(["minute", "hour", "day", "week", "month", "year"] as ReminderUnit[]).map((unit) => <Pressable key={unit} onPress={() => void setDefaultReminderUnit(unit)} style={[s(styles.timeChoice), unit === defaultReminderUnit && s(styles.timeChoiceSelected)]}><Text style={[s(styles.timeText), unit === defaultReminderUnit && s(styles.timeTextSelected)]}>{unit}{defaultReminderInterval === 1 ? "" : "s"}</Text></Pressable>)}</View><Text style={s(styles.rowHint)}>Used as the starting period for new reminders.</Text></View>
     <Text style={s(styles.section)}>YOUR DATA</Text><Pressable disabled={busy} onPress={() => void exportData()} style={s(styles.row)}><View style={s(styles.rowIcon)}><Text>↗</Text></View><View style={s(styles.rowText)}><Text style={s(styles.rowTitle)}>Export backup</Text><Text style={s(styles.rowHint)}>Save a private JSON copy</Text></View><Text style={s(styles.arrow)}>›</Text></Pressable><Pressable disabled={busy} onPress={chooseImport} style={s(styles.row)}><View style={s(styles.rowIcon)}><Text>↙</Text></View><View style={s(styles.rowText)}><Text style={s(styles.rowTitle)}>Import backup</Text><Text style={s(styles.rowHint)}>Restore a Little Again JSON file</Text></View><Text style={s(styles.arrow)}>›</Text></Pressable><Pressable onPress={deleteAll} style={[s(styles.row), s(styles.dangerRow)]}><View style={[s(styles.rowIcon), s(styles.dangerIcon)]}><Text>⌫</Text></View><View style={s(styles.rowText)}><Text style={s(styles.dangerTitle)}>Delete all moments</Text><Text style={s(styles.rowHint)}>Remove local event and entry data</Text></View><Text style={s(styles.arrow)}>›</Text></Pressable>

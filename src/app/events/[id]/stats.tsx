@@ -1,8 +1,9 @@
+import { goBack } from "@/utils/navigation";
 import { usePreferencesStore } from "@/store/preferences";
 import { createThemeStyle } from "@/utils/theme";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 
 type Stamp = { occurredAt: string; numericValue: number | null };
@@ -38,7 +39,7 @@ export default function EventStatsScreen() {
   const currentStreak = (() => { if (!stamps.length) return 0; let total = 1; for (let index = 1; index < stamps.length; index += 1) { if (new Date(stamps[index - 1].occurredAt).getTime() - new Date(stamps[index].occurredAt).getTime() <= 86_400_000) total += 1; else break; } return total; })();
   const longestStreak = (() => { if (!stamps.length) return 0; let best = 1; let run = 1; for (const interval of intervals) { if (interval <= 1) { run += 1; best = Math.max(best, run); } else run = 1; } return best; })();
 
-  return <ScrollView style={s(styles.safe)} contentContainerStyle={s(styles.content)}><Pressable onPress={() => router.back()}><Text style={s(styles.back)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>{name}</Text><Text style={s(styles.subtitle)}>A closer look at your rhythm.</Text>{loading ? <ActivityIndicator color="#315B45" style={{ marginTop: 32 }} /> : <>
+  return <ScrollView style={s(styles.safe)} contentContainerStyle={s(styles.content)}><Pressable onPress={() => goBack()}><Text style={s(styles.back)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>{name}</Text><Text style={s(styles.subtitle)}>A closer look at your rhythm.</Text>{loading ? <ActivityIndicator color="#315B45" style={{ marginTop: 32 }} /> : <>
     <Text style={s(styles.section)}>AT A GLANCE</Text><View style={s(styles.metrics)}><Metric value={String(stamps.length)} label="TOTAL ENTRIES" /><Metric value={`${currentStreak}`} label="CURRENT RUN" /><Metric value={`${longestStreak}`} label="LONGEST RUN" /></View><View style={s(styles.metrics)}><Metric value={average === null ? "—" : `${average.toFixed(1)}d`} label="AVG. INTERVAL" /><Metric value={intervals.length ? `${Math.min(...intervals).toFixed(0)}d` : "—"} label="SHORTEST" /><Metric value={intervals.length ? `${Math.max(...intervals).toFixed(0)}d` : "—"} label="LONGEST GAP" /></View>
     <View style={s(styles.metrics)}><Metric value={numeric.length ? (numeric.reduce((a, b) => a + b, 0) / numeric.length).toFixed(1) : "—"} label="AVG. VALUE" /></View>
     <Text style={s(styles.section)}>ENTRIES BY MONTH</Text><View style={s(styles.chart)}>{months.length ? months.map((month) => <View key={month.month} style={s(styles.barColumn)}><Text style={s(styles.barCount)}>{month.count}</Text><View style={s(styles.barTrack)}><View style={[s(styles.bar), { height: `${Math.max(6, month.count / maxCount * 100)}%` }]} /></View><Text style={s(styles.monthLabel)}>{new Intl.DateTimeFormat(undefined, { month: "short" }).format(new Date(`${month.month}-01T00:00:00`))}</Text></View>) : <Text style={s(styles.noData)}>Log a few moments to see your pattern here.</Text>}</View>

@@ -1,3 +1,4 @@
+import { goBack } from "@/utils/navigation";
 import { usePreferencesStore } from "@/store/preferences";
 import { createThemeStyle } from "@/utils/theme";
 import { useEffect, useState } from "react";
@@ -5,7 +6,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, Vi
 import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 
-type Result = { kind: "event" | "entry"; eventId: number; name: string; icon: string; color: string; occurredAt: string | null; note: string | null; categoryName: string };
+type Result = { kind: "event" | "entry"; eventId: number; name: string; icon: string; color: string; occurredAt: string | null; title: string | null; note: string | null; categoryName: string };
 
 export default function SearchScreen() {
   const darkMode = usePreferencesStore((state) => state.darkMode);
@@ -24,20 +25,20 @@ export default function SearchScreen() {
       setLoading(true);
       const pattern = `%${term}%`;
       void db.getAllAsync<Result>(`
-        SELECT 'event' AS kind, e.id AS eventId, e.name, e.icon, e.color, NULL AS occurredAt, e.description AS note, c.name AS categoryName
+        SELECT 'event' AS kind, e.id AS eventId, e.name, e.icon, e.color, NULL AS occurredAt, NULL AS title, e.description AS note, c.name AS categoryName
         FROM events e JOIN categories c ON c.id = e.category_id WHERE e.name LIKE ? OR c.name LIKE ? OR COALESCE(e.description, '') LIKE ?
         UNION ALL
-        SELECT 'entry' AS kind, e.id AS eventId, e.name, e.icon, e.color, en.occurred_at AS occurredAt, en.note, c.name AS categoryName
+        SELECT 'entry' AS kind, e.id AS eventId, e.name, e.icon, e.color, en.occurred_at AS occurredAt, en.title, en.note, c.name AS categoryName
         FROM entries en JOIN events e ON e.id = en.event_id JOIN categories c ON c.id = e.category_id
-        WHERE COALESCE(en.note, '') LIKE ? OR en.occurred_at LIKE ? OR e.name LIKE ? OR c.name LIKE ?
+        WHERE COALESCE(en.title, '') LIKE ? OR COALESCE(en.note, '') LIKE ? OR en.occurred_at LIKE ? OR e.name LIKE ? OR c.name LIKE ?
         ORDER BY occurredAt DESC LIMIT 50
-      `, pattern, pattern, pattern, pattern, pattern, pattern, pattern).then((items) => { if (active) setResults(items); }).catch(() => { if (active) setResults([]); }).finally(() => { if (active) setLoading(false); });
+      `, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern).then((items) => { if (active) setResults(items); }).catch(() => { if (active) setResults([]); }).finally(() => { if (active) setLoading(false); });
     }, 180);
     return () => { active = false; clearTimeout(timer); };
   }, [db, query]);
 
-  return <View style={s(styles.safe)}><Pressable onPress={() => router.back()} style={s(styles.back)}><Text style={s(styles.backText)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>Search your moments</Text><Text style={s(styles.subtitle)}>Find an event, note, category, or date.</Text><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="What are you looking for?" placeholderTextColor="#AAB0AA" style={s(styles.input)} returnKeyType="search" />
-    {loading ? <ActivityIndicator color="#315B45" style={{ marginTop: 30 }} /> : <FlatList data={query.trim() ? results : []} keyExtractor={(item, index) => `${item.kind}-${item.eventId}-${item.occurredAt ?? ""}-${index}`} contentContainerStyle={s(styles.list)} keyboardShouldPersistTaps="handled" ListEmptyComponent={query.trim() ? <Text style={s(styles.empty)}>No moments found. Try another word.</Text> : <Text style={s(styles.empty)}>Start typing to search your local history.</Text>} renderItem={({ item }) => <Pressable onPress={() => router.push({ pathname: item.kind === "entry" ? "/events/[id]/history" : "/events/[id]", params: { id: String(item.eventId) } })} style={s(styles.result)}><View style={[s(styles.icon), { backgroundColor: item.color }]}><Text style={s(styles.emoji)}>{item.icon}</Text></View><View style={s(styles.resultText)}><Text style={s(styles.name)}>{item.name}</Text><Text numberOfLines={2} style={s(styles.detail)}>{item.note || item.categoryName}{item.occurredAt ? `  ·  ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.occurredAt))}` : ""}</Text></View><Text style={s(styles.arrow)}>↗</Text></Pressable>} />}
+  return <View style={s(styles.safe)}><Pressable onPress={() => goBack()} style={s(styles.back)}><Text style={s(styles.backText)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>Search your moments</Text><Text style={s(styles.subtitle)}>Find an event, note, category, or date.</Text><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="What are you looking for?" placeholderTextColor="#AAB0AA" style={s(styles.input)} returnKeyType="search" />
+    {loading ? <ActivityIndicator color="#315B45" style={{ marginTop: 30 }} /> : <FlatList data={query.trim() ? results : []} keyExtractor={(item, index) => `${item.kind}-${item.eventId}-${item.occurredAt ?? ""}-${index}`} contentContainerStyle={s(styles.list)} keyboardShouldPersistTaps="handled" ListEmptyComponent={query.trim() ? <Text style={s(styles.empty)}>No moments found. Try another word.</Text> : <Text style={s(styles.empty)}>Start typing to search your local history.</Text>} renderItem={({ item }) => <Pressable onPress={() => router.push({ pathname: item.kind === "entry" ? "/events/[id]/history" : "/events/[id]", params: { id: String(item.eventId) } })} style={s(styles.result)}><View style={[s(styles.icon), { backgroundColor: item.color }]}><Text style={s(styles.emoji)}>{item.icon}</Text></View><View style={s(styles.resultText)}><Text style={s(styles.name)}>{item.name}</Text><Text numberOfLines={2} style={s(styles.detail)}>{item.title || item.note || item.categoryName}{item.occurredAt ? `  ·  ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.occurredAt))}` : ""}</Text></View><Text style={s(styles.arrow)}>↗</Text></Pressable>} />}
   </View>;
 }
 

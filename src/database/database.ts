@@ -37,17 +37,8 @@ export async function initializeDatabase(db: SQLiteDatabase) {
     CREATE INDEX IF NOT EXISTS idx_entries_occurred_at ON entries(occurred_at DESC);
     CREATE INDEX IF NOT EXISTS idx_events_category_id ON events(category_id);
   `);
+  const entryColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(entries)");
+  if (!entryColumns.some((column) => column.name === "title")) await db.execAsync("ALTER TABLE entries ADD COLUMN title TEXT");
+  await db.runAsync("UPDATE entries SET title = 'Recorded moment' WHERE title IS NULL OR title = ''");
 
-  const count = await db.getFirstAsync<{ count: number }>("SELECT COUNT(*) AS count FROM categories");
-  if (count?.count === 0) {
-    const now = new Date().toISOString();
-    const defaults = [
-      ["Health", "✳️", "#E9F1E9"], ["Fitness", "◉", "#E8EFF7"],
-      ["Personal", "♡", "#F5EAF0"], ["Home", "⌂", "#F5EFE2"],
-      ["Work", "▤", "#E9EBF4"], ["Finance", "◇", "#F3ECDD"], ["Other", "✦", "#ECEEE9"],
-    ];
-    for (const [name, icon, color] of defaults) {
-      await db.runAsync("INSERT OR IGNORE INTO categories (name, icon, color, created_at) VALUES (?, ?, ?, ?)", name, icon, color, now);
-    }
-  }
 }

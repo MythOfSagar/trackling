@@ -30,6 +30,7 @@ export type ReminderUnit = "minute" | "hour" | "day" | "week" | "month" | "year"
 export type CreateEntryInput = {
   eventId: number;
   occurredAt: string;
+  title?: string;
   note?: string;
   numericValue?: number | null;
 };

@@ -1,7 +1,8 @@
+import { goBack } from "@/utils/navigation";
 import { createThemeStyle } from "@/utils/theme";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { getCategories } from "@/database/repository";
 import { useEventsStore } from "@/store/events";
@@ -33,11 +34,17 @@ export default function CreateEventScreen() {
   const [reminderInterval, setReminderInterval] = useState(String(defaultReminderInterval));
   const [reminderUnit, setReminderUnit] = useState<ReminderUnit>(defaultReminderUnit);
 
-  useEffect(() => { void getCategories(db).then((items) => { setCategories(items); setCategoryId(items[0]?.id ?? null); }); }, [db]);
+  useFocusEffect(useCallback(() => { void getCategories(db).then((items) => { setCategories(items); setCategoryId((current) => current && items.some((item) => item.id === current) ? current : items[0]?.id ?? null); }); }, [db]));
 
   const save = async () => {
     if (!name.trim()) { Alert.alert("Give it a name", "Add a name for the thing you want to track."); return; }
-    if (!categoryId) return;
+    if (!categoryId) {
+      Alert.alert("Choose a category", categories.length === 0 ? "Create a category before saving this moment." : "Select a category for this moment.", categories.length === 0 ? [
+        { text: "Cancel", style: "cancel" },
+        { text: "Create category", onPress: () => router.push("/categories") },
+      ] : undefined);
+      return;
+    }
     const interval = Number(reminderInterval);
     if (reminderEnabled && (!Number.isInteger(interval) || interval < 1 || interval > 999)) { Alert.alert("Check the reminder interval", "Enter a whole number from 1 to 999."); return; }
     setSaving(true);
@@ -53,21 +60,23 @@ export default function CreateEventScreen() {
           Alert.alert("Moment created", "Notifications weren’t enabled, so a reminder couldn’t be scheduled. You can turn them on in device settings.");
         }
       }
-      router.back();
+      goBack();
     }
-    catch { Alert.alert("Couldn’t create this yet", "Please try again."); }
+    catch (error) {
+      Alert.alert("Couldn’t create this yet", error instanceof Error ? error.message : "Please try again.");
+    }
     finally { setSaving(false); }
   };
 
   return (
     <KeyboardAvoidingView style={s(styles.safe)} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={s(styles.content)} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} style={s(styles.back)}><Text style={s(styles.backText)}>‹</Text><Text style={s(styles.backLabel)}>Back</Text></Pressable>
+        <Pressable onPress={() => goBack()} style={s(styles.back)}><Text style={s(styles.backText)}>‹</Text><Text style={s(styles.backLabel)}>Back</Text></Pressable>
         <Text style={s(styles.eyebrow)}>A NEW LITTLE RITUAL</Text><Text style={s(styles.title)}>What would you like{`\n`}to remember?</Text><Text style={s(styles.subtitle)}>Create a moment to keep an eye on.</Text>
         <Text style={s(styles.label)}>NAME</Text><TextInput value={name} onChangeText={setName} placeholder="e.g. Morning walk" placeholderTextColor="#AAB0AA" style={s(styles.input)} autoFocus returnKeyType="next" maxLength={60} />
         <Text style={s(styles.label)}>PICK AN ICON</Text><View style={s(styles.iconGrid)}>{icons.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityLabel={`Choose ${item} icon`} onPress={() => setIcon(item)} style={[s(styles.iconOption), icon === item && s(styles.iconOptionSelected)]}><Text style={s(styles.iconText)}>{item}</Text></Pressable>)}</View>
         <Text style={s(styles.label)}>COLOR</Text><View style={s(styles.colorRow)}>{colors.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityLabel="Choose event color" onPress={() => setColor(item)} style={[s(styles.colorOption), { backgroundColor: item }, color === item && s(styles.colorSelected)]} />)}</View>
-        <Text style={s(styles.label)}>CATEGORY</Text><View style={s(styles.categoryGrid)}>{categories.map((item) => <Pressable key={item.id} onPress={() => setCategoryId(item.id)} style={[s(styles.categoryOption), categoryId === item.id && s(styles.categorySelected)]}><Text style={s(styles.categoryIcon)}>{item.icon}</Text><Text style={[s(styles.categoryText), categoryId === item.id && s(styles.categoryTextSelected)]}>{item.name}</Text></Pressable>)}</View>
+        <Text style={s(styles.label)}>CATEGORY</Text><View style={s(styles.categoryGrid)}>{categories.map((item) => <Pressable key={item.id} onPress={() => setCategoryId(item.id)} style={[s(styles.categoryOption), categoryId === item.id && s(styles.categorySelected)]}><Text style={s(styles.categoryIcon)}>{item.icon}</Text><Text style={[s(styles.categoryText), categoryId === item.id && s(styles.categoryTextSelected)]}>{item.name}</Text></Pressable>)}</View>{categories.length === 0 ? <Pressable onPress={() => router.push("/categories")}><Text style={s(styles.reminderHint)}>Create a category to continue</Text></Pressable> : null}
         <Text style={s(styles.label)}>DESCRIPTION <Text style={s(styles.optional)}>· OPTIONAL</Text></Text><TextInput value={description} onChangeText={setDescription} placeholder="A little context, if you like" placeholderTextColor="#AAB0AA" style={[s(styles.input), s(styles.description)]} multiline maxLength={180} />
         <View style={s(styles.reminderRow)}><View><Text style={s(styles.reminderTitle)}>Gentle reminder</Text><Text style={s(styles.reminderHint)}>A local notification, just for you</Text></View><Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{ false: "#DDE2DB", true: "#91AA93" }} thumbColor={reminderEnabled ? "#315B45" : "#FFFFFF"} accessibilityLabel="Enable a reminder" /></View>
         {reminderEnabled && <><Text style={s(styles.reminderHint)}>Remind me every</Text><View style={s(styles.intervalRow)}><TextInput value={reminderInterval} onChangeText={setReminderInterval} keyboardType="number-pad" maxLength={3} style={s(styles.input)} accessibilityLabel="Reminder interval" /><Text style={s(styles.reminderHint)}>units</Text></View><View style={s(styles.intervalRow)}>{(["minute", "hour", "day", "week", "month", "year"] as ReminderUnit[]).map((unit) => <Pressable key={unit} onPress={() => setReminderUnit(unit)} style={[s(styles.interval), reminderUnit === unit && s(styles.intervalActive)]}><Text style={[s(styles.intervalText), reminderUnit === unit && s(styles.intervalTextActive)]}>{unit}{Number(reminderInterval) === 1 ? "" : "s"}</Text></Pressable>)}</View><Text style={s(styles.reminderHint)}>Month and year intervals use 30 and 365 days.</Text></>}

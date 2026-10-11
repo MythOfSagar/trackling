@@ -42,11 +42,15 @@ export async function updateEvent(db: SQLiteDatabase, eventId: number, input: Cr
   );
 }
 
+export async function deleteEvent(db: SQLiteDatabase, eventId: number) {
+  await db.runAsync("DELETE FROM events WHERE id = ?", eventId);
+}
+
 export async function createEntry(db: SQLiteDatabase, input: CreateEntryInput) {
   const now = new Date().toISOString();
   await db.runAsync(
-    "INSERT INTO entries (event_id, occurred_at, note, numeric_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-    input.eventId, input.occurredAt, input.note?.trim() || null, input.numericValue ?? null, now, now,
+    "INSERT INTO entries (event_id, occurred_at, title, note, numeric_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    input.eventId, input.occurredAt, input.title?.trim() || "Recorded moment", input.note?.trim() || null, input.numericValue ?? null, now, now,
   );
   await db.runAsync("UPDATE events SET updated_at = ? WHERE id = ?", now, input.eventId);
 }
@@ -57,6 +61,6 @@ export async function deleteEntry(db: SQLiteDatabase, entryId: number) {
 
 export async function updateEntry(db: SQLiteDatabase, entryId: number, input: CreateEntryInput) {
   const now = new Date().toISOString();
-  await db.runAsync("UPDATE entries SET occurred_at = ?, note = ?, numeric_value = ?, updated_at = ? WHERE id = ? AND event_id = ?", input.occurredAt, input.note?.trim() || null, input.numericValue ?? null, now, entryId, input.eventId);
+  await db.runAsync("UPDATE entries SET occurred_at = ?, title = ?, note = ?, numeric_value = ?, updated_at = ? WHERE id = ? AND event_id = ?", input.occurredAt, input.title?.trim() || "Recorded moment", input.note?.trim() || null, input.numericValue ?? null, now, entryId, input.eventId);
   await db.runAsync("UPDATE events SET updated_at = ? WHERE id = ?", now, input.eventId);
 }

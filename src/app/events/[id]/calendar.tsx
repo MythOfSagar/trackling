@@ -1,3 +1,4 @@
+import { goBack } from "@/utils/navigation";
 import { createThemeStyle } from "@/utils/theme";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -6,7 +7,7 @@ import { useSQLiteContext } from "expo-sqlite";
 import { usePreferencesStore } from "@/store/preferences";
 import { formatClock } from "@/utils/elapsed";
 
-type CalendarEntry = { id: number; occurredAt: string; note: string | null; numericValue: number | null };
+type CalendarEntry = { id: number; occurredAt: string; title: string; note: string | null; numericValue: number | null };
 type StoredDay = { day: string; count: number };
 const pad = (value: number) => String(value).padStart(2, "0");
 const keyFor = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -32,7 +33,7 @@ export default function EventCalendarScreen() {
       const start = new Date(first.getTime() - 86_400_000).toISOString();
       const end = new Date(month.getFullYear(), month.getMonth() + 1, 2).toISOString();
       const [rows, event] = await Promise.all([
-        db.getAllAsync<CalendarEntry>("SELECT id, occurred_at AS occurredAt, note, numeric_value AS numericValue FROM entries WHERE event_id = ? AND occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at", Number(id), start, end),
+        db.getAllAsync<CalendarEntry>("SELECT id, occurred_at AS occurredAt, title, note, numeric_value AS numericValue FROM entries WHERE event_id = ? AND occurred_at >= ? AND occurred_at < ? ORDER BY occurred_at", Number(id), start, end),
         db.getFirstAsync<{ name: string }>("SELECT name FROM events WHERE id = ?", Number(id)),
       ]);
       const grouped = new Map<string, number>();
@@ -57,12 +58,12 @@ export default function EventCalendarScreen() {
     setMonth(next); setSelected(keyFor(new Date(next.getFullYear(), next.getMonth(), 1)));
   };
 
-  return <ScrollView style={s(styles.safe)} contentContainerStyle={s(styles.content)}><Pressable onPress={() => router.back()}><Text style={s(styles.back)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>{name}</Text><Text style={s(styles.subtitle)}>Your moments, day by day.</Text>
+  return <ScrollView style={s(styles.safe)} contentContainerStyle={s(styles.content)}><Pressable onPress={() => goBack()}><Text style={s(styles.back)}>‹  Back</Text></Pressable><Text style={s(styles.title)}>{name}</Text><Text style={s(styles.subtitle)}>Your moments, day by day.</Text>
     <View style={s(styles.calendar)}><View style={s(styles.monthRow)}><Pressable onPress={() => changeMonth(-1)} style={s(styles.monthButton)}><Text style={s(styles.monthArrow)}>‹</Text></Pressable><Text style={s(styles.monthTitle)}>{monthTitle}</Text><Pressable onPress={() => changeMonth(1)} style={s(styles.monthButton)}><Text style={s(styles.monthArrow)}>›</Text></Pressable></View>
       <View style={s(styles.grid)}>{["S", "M", "T", "W", "T", "F", "S"].map((weekday, index) => <Text key={`${weekday}${index}`} style={s(styles.weekday)}>{weekday}</Text>)}{cells.map((day, index) => { if (day === null) return <View key={`blank-${index}`} style={s(styles.dayCell)} />; const dateKey = keyFor(new Date(month.getFullYear(), month.getMonth(), day)); const marked = dates.has(dateKey); return <Pressable key={dateKey} onPress={() => setSelected(dateKey)} style={s(styles.dayCell)}><View style={[s(styles.dayCircle), selected === dateKey && s(styles.daySelected)]}><Text style={[s(styles.dayText), selected === dateKey && s(styles.dayTextSelected)]}>{day}</Text></View><View style={[s(styles.dayMark), marked && s(styles.dayMarked)]} /></Pressable>; })}</View>
     </View>
     <View style={s(styles.dayHeading)}><View><Text style={s(styles.dayTitle)}>{new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric" }).format(new Date(`${selected}T12:00:00`))}</Text><Text style={s(styles.daySubtitle)}>{entries.length} {entries.length === 1 ? "moment" : "moments"}</Text></View><Pressable onPress={() => router.push({ pathname: "/entries/new", params: { eventId: String(id), date: selected } })} style={s(styles.add)}><Text style={s(styles.addText)}>＋ Add</Text></Pressable></View>
-    {loading ? <ActivityIndicator color="#315B45" style={{ marginTop: 24 }} /> : entries.length ? entries.map((entry) => <View key={entry.id} style={s(styles.entry)}><Text style={s(styles.entryTime)}>{formatClock(entry.occurredAt, use24Hour)}</Text><Text style={s(styles.entryNote)}>{entry.note || "Recorded moment"}</Text>{entry.numericValue !== null ? <Text style={s(styles.entryValue)}>{entry.numericValue}</Text> : null}</View>) : <Text style={s(styles.empty)}>Nothing recorded for this day.</Text>}
+    {loading ? <ActivityIndicator color="#315B45" style={{ marginTop: 24 }} /> : entries.length ? entries.map((entry) => <View key={entry.id} style={s(styles.entry)}><Text style={s(styles.entryTime)}>{formatClock(entry.occurredAt, use24Hour)}</Text><Text style={s(styles.entryNote)}>{entry.title}{entry.note ? ` � ${entry.note}` : ""}</Text>{entry.numericValue !== null ? <Text style={s(styles.entryValue)}>{entry.numericValue}</Text> : null}</View>) : <Text style={s(styles.empty)}>Nothing recorded for this day.</Text>}
   </ScrollView>;
 }
 
